@@ -57,6 +57,13 @@ PERKS = [
 HOOKS_MORNING = ["Probuďte se s TÍMTO výhledem", "Váš domov v první řadě u moře", "Káva s výhledem na moře?", "Luxus přímo u moře"]
 HOOKS_EVENING = ["Takové západy slunce každý den", "Vlastní luxus u moře", "Dnešní klenot u moře", "Stále jen sníte o moři?"]
 # Kevin MacLeod (incompetech.com) - Licensed under Creative Commons: By Attribution 4.0
+# own instrumental tracks from the Suno account (Pro plan, commercial use)
+SUNO = {
+    "Sunlit Horizons": "f5fb9a10-d8c7-42ec-b82f-de32097f9c41",
+    "Bright Summer Groove": "891d93bb-f412-4c12-8ea7-ec4ba5a54347",
+    "Ibiza Sun Drive": "299c9dc1-6b65-4c8f-b38e-f2d66fde3750",
+    "Ibiza Sun": "c8e2eb7f-2dd9-40a7-b0a3-a5d75e915e88",
+}
 # fallback only, used when the music/ folder is empty
 MUSIC = ["Airport Lounge", "Backbay Lounge", "Bossa Antigua", "Cool Vibes"]
 STOCK_QUERIES = ["luxury villa sea view", "mediterranean coast aerial", "turquoise sea beach", "infinity pool sea", "yacht sea aerial"]
@@ -352,6 +359,17 @@ def music(path):
         src = random.choice(own)
         ff(["-i", src, "-c:a", "libmp3lame", "-b:a", "192k", path])
         return os.path.splitext(os.path.basename(src))[0], False
+    names = list(SUNO)
+    random.shuffle(names)
+    for n in names:
+        try:
+            r = get("https://cdn1.suno.ai/%s.mp3" % SUNO[n])
+            if len(r.content) > 100000:
+                open(path, "wb").write(r.content)
+                log("music (suno):", n)
+                return n, False
+        except Exception as e:
+            log("suno track failed", n, e)
     tracks = MUSIC[:]
     random.shuffle(tracks)
     for t in tracks:
