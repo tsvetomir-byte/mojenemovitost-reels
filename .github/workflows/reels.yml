@@ -1,0 +1,62 @@
+name: Instagram Reels autopilot
+
+on:
+  schedule:
+    # about 7:30 and 15:00 Europe/Prague (winter and summer time; the script checks the Prague hour)
+    - cron: "10 5,6 * * *"
+    - cron: "40 12,13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only build the video, do not publish (1 = yes)"
+        default: "1"
+      force:
+        description: "Ignore the time check (1 = yes)"
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reels
+  cancel-in-progress: false
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q requests pillow
+          mkdir -p fonts
+          curl -sL -o fonts/Poppins-Bold.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf
+          curl -sL -o fonts/Poppins-Medium.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Medium.ttf
+      - name: Build and publish reel
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          FORCE: ${{ github.event.inputs.force || '0' }}
+        run: python reels.py
+      - name: Keep the video of this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-video
+          path: final.mp4
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Save posted list
+        if: success()
+        run: |
+          git config user.name "reels-bot"
+          git config user.email "reels-bot@users.noreply.github.com"
+          git add posted.json
+          git commit -m "posted $(date -u +%F-%H%M)" || echo "nothing to commit"
+          git push
