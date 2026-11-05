@@ -558,6 +558,9 @@ def _publish_once(tok, ig, data, cap, video_url=None):
 def main():
     now = datetime.now(ZoneInfo("Europe/Prague"))
     force = os.environ.get("FORCE") == "1"
+    if not os.environ.get("IG_TOKEN") and os.environ.get("DRY_RUN") != "1":
+        log("IG_TOKEN is not set yet - nothing to publish")
+        return
     if not force and now.hour not in (7, 8, 14, 15, 16):
         log("Not posting time in Prague (%s) - skip" % now.strftime("%H:%M"))
         return
