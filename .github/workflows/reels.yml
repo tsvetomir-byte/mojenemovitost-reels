@@ -34,6 +34,7 @@ jobs:
           mkdir -p fonts
           curl -sL -o fonts/Poppins-Bold.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf
           curl -sL -o fonts/Poppins-Medium.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Medium.ttf
+      - {name: Get Suno music, env: {GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"}, run: "gh release download music -D music -p '*.mp3' --clobber || echo no-music"}
       - name: Build and publish reel
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
