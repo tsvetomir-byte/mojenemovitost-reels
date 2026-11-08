@@ -81,10 +81,18 @@ def get(url, **kw):
 
 
 # ---------------------------------------------------------------- property
-def collect_ids():
+CYPRUS_ID = 53  # country_id of Kypr on mojenemovitostumore.cz
+
+
+def cyprus_day(d):
+    """Cyprus every other day (odd ordinal, e.g. 2026-11-09): both Reels from Cyprus; the other days other countries."""
+    return d.toordinal() % 2 == 1
+
+
+def collect_ids(extra=""):
     ids = {}
     for p in range(1, 41):
-        u = SITE + LUXURY + ("&advertList-page=%d" % p if p > 1 else "")
+        u = SITE + LUXURY + extra + ("&advertList-page=%d" % p if p > 1 else "")
         try:
             h = get(u).text
         except Exception as e:
@@ -587,13 +595,21 @@ def main():
     if not force and any(v.get("slot") == slot for v in posted.values()):
         log("Already posted in slot", slot)
         return
-    ids = collect_ids()
+    cy = cyprus_day(now.date())
+    log("Cyprus day" if cy else "Other countries day (no Cyprus)")
+    ids = collect_ids("&country_id=%d" % CYPRUS_ID if cy else "")
     fresh = [i for i in ids if i not in posted]
     random.shuffle(fresh)
     log("luxury properties:", len(ids), "not posted yet:", len(fresh))
-    for pid in fresh[:10]:
+    for pid in fresh[:25]:
         f_ = facts(get(ids[pid]).text, pid)
         log("candidate", pid, f_["title"], f_["price"], f_["sea"], len(f_["images"]))
+        if cy and f_["country"] not in ("Kypr", ""):
+            log("skip", pid, "- not Cyprus on Cyprus day")
+            continue
+        if not cy and f_["country"] == "Kypr":
+            log("skip", pid, "- Cyprus is for the Cyprus days")
+            continue
         if re.search(r"pozemek|pronájem", f_["title"], re.I):
             log("skip", pid, "- land or rental")
             continue
