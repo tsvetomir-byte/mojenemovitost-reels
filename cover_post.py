@@ -175,7 +175,12 @@ def weather_head(issue):
 
 
 def headlines(f_, issue):
-    where = f_["town"] if f_["town"] == f_["country"] else "%s, %s" % (f_["town"], f_["country"])
+    town = f_["town"]
+    if town == f_["country"] and re.search(r"\s[–-]\s", f_["title"]):
+        t = re.split(r"\s[–-]\s", f_["title"])[-1].strip()
+        if 2 < len(t) <= 22:
+            town = t
+    where = town if town == f_["country"] else "%s, %s" % (town, f_["country"])
     bits = [where]
     if f_["sea"]:
         bits.append("%s od moře" % f_["sea"])
