@@ -1,0 +1,59 @@
+name: Instagram magazine cover U MORE (Sunday 10:00)
+
+on:
+  schedule:
+    # Sunday about 10:00 Europe/Prague (winter and summer time; the script checks the Prague hour)
+    - cron: "10 8,9 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only build the cover, do not publish (1 = yes)"
+        default: "1"
+      force:
+        description: "Ignore the time check (1 = yes)"
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reels
+  cancel-in-progress: false
+
+jobs:
+  cover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          pip install -q requests pillow
+          mkdir -p fonts
+          curl -sL -o fonts/Poppins-Bold.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf
+          curl -sL -o fonts/Poppins-Medium.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Medium.ttf
+      - name: Build and publish cover
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          FORCE: ${{ github.event.inputs.force || '0' }}
+        run: python cover_post.py
+      - name: Keep the cover of this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cover-image
+          path: cover.jpg
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Save cover list
+        if: success()
+        run: |
+          git config user.name "reels-bot"
+          git config user.email "reels-bot@users.noreply.github.com"
+          git pull --rebase -q || true
+          git add cover_posted.json 2>/dev/null || true
+          git commit -m "cover $(date -u +%F-%H%M)" || echo "nothing to commit"
+          git push
