@@ -21,6 +21,7 @@ import requests
 from PIL import Image, ImageDraw
 
 import reels as R
+import trend_topics as TT
 from reels import W, H, WHITE, font, fit_text, wrap, pill, shadow_text, ff, log
 
 START = date(2026, 11, 9)
@@ -162,6 +163,70 @@ TOPICS = [
 ]
 
 
+# 60-day cycle: info topic and trend topic alternate (trend = varied, not only real estate)
+INFO_TOPICS = TOPICS
+TOPICS = [t for pair in zip(INFO_TOPICS, TT.TREND) for t in pair]
+CREDITS = []
+
+
+def city_weather(key):
+    name, lat, lon, sea = TT.CITIES[key]
+    air = s = None
+    try:
+        r = requests.get("https://api.open-meteo.com/v1/forecast", timeout=40,
+                         params={"latitude": lat, "longitude": lon, "current": "temperature_2m"}).json()
+        air = round(r["current"]["temperature_2m"])
+    except Exception as e:
+        log("air temp failed", key, e)
+    if sea:
+        try:
+            r = requests.get("https://marine-api.open-meteo.com/v1/marine", timeout=40,
+                             params={"latitude": sea[0], "longitude": sea[1], "current": "sea_surface_temperature"}).json()
+            s = round(r["current"]["sea_surface_temperature"])
+        except Exception as e:
+            log("sea temp failed", key, e)
+    return air, s
+
+
+def live_fill(topic):
+    """fill {t:city} / {s:city} placeholders with live temperatures; returns dict for fill()."""
+    text = json.dumps(topic[2:5], ensure_ascii=False)
+    wx = {}
+    for kind, key in set(re.findall(r"\{([ts]):(\w+)\}", text)):
+        air, sea = city_weather(key)
+        v = air if kind == "t" else sea
+        if v is None:
+            return None  # no live data -> caller picks another topic (never show made-up numbers)
+        wx[kind + ":" + key] = "%d °C" % v
+    return wx
+
+
+def openverse_photo(path, query):
+    """free CC photo (Openverse, no key needed) as a fallback when there is no stock video."""
+    try:
+        r = requests.get("https://api.openverse.org/v1/images/", timeout=30, headers=R.UA,
+                         params={"q": query, "license": "cc0,pdm,by,by-sa", "size": "large", "page_size": 30,
+                                 "mature": "false"}).json()
+        hits = [h for h in r.get("results", []) if (h.get("width") or 0) >= 1000 and h.get("url")
+                and h["id"] not in R._USED_STOCK]
+        random.shuffle(hits)
+        for h in hits[:6]:
+            try:
+                data = requests.get(h["url"], timeout=40, headers=R.UA).content
+                open(path, "wb").write(data)
+                Image.open(path).convert("RGB").save(path, "JPEG", quality=92)
+                R._USED_STOCK.add(h["id"])
+                lic = (h.get("license") or "").upper()
+                CREDITS.append("%s (%s%s)" % (h.get("creator") or "autor neuveden", "CC " if lic not in ("CC0", "PDM") else "", lic))
+                log("photo (openverse):", query, h.get("foreign_landing_url"))
+                return path
+            except Exception as e:
+                log("photo download failed", e)
+    except Exception as e:
+        log("openverse failed:", e)
+    return None
+
+
 def weather(c):
     """live air + sea temperature (Open-Meteo). returns (air, sea) strings or None."""
     air = sea = None
@@ -262,6 +327,12 @@ def clip(c, query, ovl, dur, out, n):
     sv = R.stock_clip("%s/s%d.mp4" % (R.WORK, n), query) or R.stock_clip("%s/s%d.mp4" % (R.WORK, n), random.choice(c["stock"]))
     if sv:
         R.clip_from_video(sv, ovl, dur, out)
+        return
+    ph = openverse_photo("%s/ph%d.jpg" % (R.WORK, n), query) or openverse_photo("%s/ph%d.jpg" % (R.WORK, n), random.choice(c["stock"]))
+    if ph:
+        bg = "%s/bgp%d.jpg" % (R.WORK, n)
+        R.photo_frame(ph, bg) if Image.open(ph).width > Image.open(ph).height * 0.75 else Image.open(ph).save(bg)
+        R.clip_from_image(bg, ovl, dur, out, move=n)
     else:
         bg = "%s/bg%d.jpg" % (R.WORK, n)
         sea_background(bg, n)
@@ -269,10 +340,10 @@ def clip(c, query, ovl, dur, out, n):
 
 
 def build(topic, wx, badge):
-    key, c, hook, screens, cta, _ = topic
+    key, c, hook, screens, cta = topic[:5]
     os.makedirs(R.WORK, exist_ok=True)
-    tag = c["name"].upper() + " · INFO"
-    queries = c["stock"][:]
+    tag = c["name"].upper() + (" · INFO" if key[0] in "KS" else "")
+    queries = list(topic[6]) if len(topic) > 6 else c["stock"][:]
     random.shuffle(queries)
     clips, durs = [], []
     info_hook(R.WORK + "/ih.png", tag, hook, badge)
@@ -307,14 +378,16 @@ def build(topic, wx, badge):
 
 
 def caption(topic, wx, badge, track):
-    key, c, hook, screens, cta, extra = topic
+    key, c, hook, screens, cta, extra = topic[:6]
     lines = ["🌊 " + hook, ""]
     lines += ["✅ " + fill(b, wx) + (" – " + fill(s, wx) if s else "") for b, s in screens]
     if badge:
         lines += ["", "☀️ " + badge]
     lines += ["", "👉 " + cta, "📩 Napište nám do zpráv " + c["dm"] + " – odpovíme česky.",
               "🇨🇿 20 let jen nemovitosti u moře · 1 500+ nových majitelů · kompletní servis",
-              "", "ℹ️ " + LEGAL, "", " ".join((extra + c["tags"] + COMMON_TAGS)[:15])]
+              "", "ℹ️ " + LEGAL, "", " ".join(list(dict.fromkeys(extra + c["tags"] + COMMON_TAGS))[:15])]
+    if CREDITS:
+        lines += ["", "📷 Foto: " + ", ".join(dict.fromkeys(CREDITS)) + " – Openverse"]
     if track:
         lines += ["", '🎵 Hudba: "%s" – Kevin MacLeod (incompetech.com), CC BY 4.0' % track]
     return "\n".join(lines)
@@ -341,10 +414,23 @@ def main():
     else:
         topic = TOPICS[(now.date() - START).days % len(TOPICS)]
     c = topic[1]
-    air, sea = weather(c)
-    pre = "cy_" if c is CY else "es_"
-    wx = {pre + "air": ("%d °C" % air) if air is not None else "Živé počasí",
-          pre + "sea": ("Moře %d °C" % sea) if sea is not None else "Teplé moře"}
+    air = sea = None
+    wx = {}
+    if "lat" in c:
+        air, sea = weather(c)
+        pre = "cy_" if c is CY else "es_"
+        wx = {pre + "air": ("%d °C" % air) if air is not None else "Živé počasí",
+              pre + "sea": ("Moře %d °C" % sea) if sea is not None else "Teplé moře"}
+    live = live_fill(topic)
+    if live is None:
+        i = TOPICS.index(topic)
+        topic = next(t for t in TOPICS[i + 1:] + TOPICS[:i] if "{" not in json.dumps(t[2:5], ensure_ascii=False))
+        log("live weather unavailable - using topic", topic[0])
+        c = topic[1]
+        air = sea = None
+        wx = {}
+    else:
+        wx.update(live)
     badge = None
     if air is not None:
         badge = "Dnes %s: %d °C" % (c["town"], air) + (" · moře %d °C" % sea if sea is not None else "")
