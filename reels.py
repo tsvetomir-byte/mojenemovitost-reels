@@ -60,11 +60,15 @@ HOOKS_MORNING = ["Probuďte se s TÍMTO výhledem", "Váš domov v první řadě
 HOOKS_EVENING = ["Takové západy slunce každý den", "Vlastní luxus u moře", "Dnešní klenot u moře", "Stále jen sníte o moři?"]
 # Kevin MacLeod (incompetech.com) - Licensed under Creative Commons: By Attribution 4.0
 # own instrumental tracks from the Suno account (Pro plan, commercial use)
-SUNO = {
-    "Sunlit Horizons": "f5fb9a10-d8c7-42ec-b82f-de32097f9c41",
-    "Bright Summer Groove": "891d93bb-f412-4c12-8ea7-ec4ba5a54347",
-    "Ibiza Sun Drive": "299c9dc1-6b65-4c8f-b38e-f2d66fde3750",
-    "Ibiza Sun": "c8e2eb7f-2dd9-40a7-b0a3-a5d75e915e88",
+SUNO = {  # luxury real-estate instrumentals (deep house / lounge, no vocals), generated 2026-11-15
+    "Luxury Sea View 1": "21c2c960-d055-4f7f-bb43-96f199ca9aac",
+    "Luxury Sea View 2": "4066d062-91ad-48fe-ad90-1e5cc9b39913",
+    "Luxury Sea View 3": "6bbcf46a-da98-47a8-90fe-a8f83e49d195",
+    "Luxury Sea View 4": "9335ada1-cd93-4a75-9982-6362804229f7",
+    "Luxury Sea View 5": "3c5318b9-8d8f-426e-b370-2de1298d1b16",
+    "Luxury Sea View 6": "f75ab7ee-b780-43ba-8ea2-529dcc723e0a",
+    "Oceanfront Open House 1": "66a5ebff-2aef-4a45-a4f7-38e0489acb35",
+    "Oceanfront Open House 2": "d1cc265f-779f-4057-9cfa-824070587039",
 }
 # fallback only, used when the music/ folder is empty
 MUSIC = ["Airport Lounge", "Backbay Lounge", "Bossa Antigua", "Cool Vibes"]
@@ -364,11 +368,6 @@ def stock_clip(path, query=None):
 
 def music(path):
     """own instrumental Suno tracks from music/; free lounge tracks only as a fallback. returns (name, needs_credit)"""
-    own = glob.glob("music/*.mp3") + glob.glob("music/*.wav") + glob.glob("music/*.m4a")
-    if own:
-        src = random.choice(own)
-        ff(["-i", src, "-c:a", "libmp3lame", "-b:a", "192k", path])
-        return os.path.splitext(os.path.basename(src))[0], False
     names = list(SUNO)
     random.shuffle(names)
     for n in names:
@@ -380,6 +379,11 @@ def music(path):
                 return n, False
         except Exception as e:
             log("suno track failed", n, e)
+    own = glob.glob("music/*.mp3") + glob.glob("music/*.wav") + glob.glob("music/*.m4a")
+    if own:  # old release tracks only as a backup
+        src = random.choice(own)
+        ff(["-i", src, "-c:a", "libmp3lame", "-b:a", "192k", path])
+        return os.path.splitext(os.path.basename(src))[0], False
     tracks = MUSIC[:]
     random.shuffle(tracks)
     for t in tracks:
