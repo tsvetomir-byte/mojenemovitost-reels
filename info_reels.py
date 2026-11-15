@@ -201,10 +201,50 @@ def live_fill(topic):
     return wx
 
 
-def openverse_photo(path, query):
-    """free CC photo (Openverse, no key needed) as a fallback when there is no stock video."""
+BOT_UA = {"User-Agent": "MojeNemovitostReels/1.0 (https://mojenemovitostumore.cz; info@mojenemovitostumore.cz)"}
+OK_LIC = ("cc0", "public domain", "pd", "cc by")
+
+
+def commons_photo(path, query):
+    """free photo from Wikimedia Commons (CC0 / public domain / CC BY / CC BY-SA, no key needed)."""
     try:
-        r = requests.get("https://api.openverse.org/v1/images/", timeout=30, headers=R.UA,
+        r = requests.get("https://commons.wikimedia.org/w/api.php", timeout=30, headers=BOT_UA, params={
+            "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6, "gsrlimit": 40,
+            "gsrsearch": query + " filetype:bitmap", "prop": "imageinfo", "iiprop": "url|size|extmetadata",
+            "iiurlwidth": 1600}).json()
+        pages = list(r.get("query", {}).get("pages", {}).values())
+        random.shuffle(pages)
+        for pg in pages:
+            ii = (pg.get("imageinfo") or [{}])[0]
+            meta = ii.get("extmetadata", {})
+            lic = re.sub(r"<[^>]+>", "", meta.get("LicenseShortName", {}).get("value", "")).strip()
+            if (ii.get("width") or 0) < 1200 or not lic.lower().startswith(OK_LIC) or pg["pageid"] in R._USED_STOCK:
+                continue
+            if re.search(r"map|logo|diagram|flag|coat of arms|plan|svg", pg.get("title", ""), re.I):
+                continue
+            try:
+                data = requests.get(ii.get("thumburl") or ii["url"], timeout=40, headers=BOT_UA).content
+                open(path, "wb").write(data)
+                Image.open(path).convert("RGB").save(path, "JPEG", quality=92)
+            except Exception as e:
+                log("photo download failed", e)
+                continue
+            R._USED_STOCK.add(pg["pageid"])
+            artist = re.sub(r"<[^>]+>", "", meta.get("Artist", {}).get("value", "")).strip()[:40] or "autor neuveden"
+            CREDITS.append("%s (%s)" % (artist, lic))
+            log("photo (commons):", query, ii.get("descriptionurl"))
+            return path
+    except Exception as e:
+        log("commons failed:", e)
+    return None
+
+
+def openverse_photo(path, query):
+    """Wikimedia Commons first, Openverse as a second source."""
+    if commons_photo(path, query):
+        return path
+    try:
+        r = requests.get("https://api.openverse.org/v1/images/", timeout=30, headers=BOT_UA,
                          params={"q": query, "license": "cc0,pdm,by,by-sa", "size": "large", "page_size": 30,
                                  "mature": "false"}).json()
         hits = [h for h in r.get("results", []) if (h.get("width") or 0) >= 1000 and h.get("url")
@@ -212,7 +252,7 @@ def openverse_photo(path, query):
         random.shuffle(hits)
         for h in hits[:6]:
             try:
-                data = requests.get(h["url"], timeout=40, headers=R.UA).content
+                data = requests.get(h["url"], timeout=40, headers=BOT_UA).content
                 open(path, "wb").write(data)
                 Image.open(path).convert("RGB").save(path, "JPEG", quality=92)
                 R._USED_STOCK.add(h["id"])
@@ -387,7 +427,7 @@ def caption(topic, wx, badge, track):
               "🇨🇿 20 let jen nemovitosti u moře · 1 500+ nových majitelů · kompletní servis",
               "", "ℹ️ " + LEGAL, "", " ".join(list(dict.fromkeys(extra + c["tags"] + COMMON_TAGS))[:15])]
     if CREDITS:
-        lines += ["", "📷 Foto: " + ", ".join(dict.fromkeys(CREDITS)) + " – Openverse"]
+        lines += ["", "📷 Foto: " + ", ".join(dict.fromkeys(CREDITS)) + ""]
     if track:
         lines += ["", '🎵 Hudba: "%s" – Kevin MacLeod (incompetech.com), CC BY 4.0' % track]
     return "\n".join(lines)
