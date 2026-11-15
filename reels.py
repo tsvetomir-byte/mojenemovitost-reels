@@ -41,7 +41,9 @@ GRAPH = "https://graph.facebook.com/v26.0"
 W, H, FPS = 1080, 1920, 30
 RED = (11, 37, 69)  # deep navy, the luxury brand colour
 WHITE = (255, 255, 255)
-UA = {"User-Agent": "Mozilla/5.0 MojeNemovitostReels"}
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "cs-CZ,cs;q=0.9,en;q=0.8"}
 WORK = "work"
 FONT_BOLD = "fonts/Poppins-Bold.ttf"
 FONT_REG = "fonts/Poppins-Medium.ttf"
