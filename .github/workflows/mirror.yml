@@ -65,4 +65,4 @@ jobs:
           git pull --rebase -q || true
           git add posted.json mirror_seen.json 2>/dev/null || true
           git commit -m "mirror $(date -u +%F-%H%M)" || echo "nothing to commit"
-          git push
+          git push || (git pull --rebase -q && git push)

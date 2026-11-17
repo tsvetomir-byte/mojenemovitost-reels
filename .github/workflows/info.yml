@@ -64,4 +64,4 @@ jobs:
           git pull --rebase -q || true
           git add info_posted.json 2>/dev/null || true
           git commit -m "info reel $(date -u +%F-%H%M)" || echo "nothing to commit"
-          git push
+          git push || (git pull --rebase -q && git push)

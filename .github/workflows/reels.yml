@@ -58,6 +58,7 @@ jobs:
         run: |
           git config user.name "reels-bot"
           git config user.email "reels-bot@users.noreply.github.com"
+          git pull --rebase -q || true
           git add posted.json
           git commit -m "posted $(date -u +%F-%H%M)" || echo "nothing to commit"
-          git push
+          git push || (git pull --rebase -q && git push)
