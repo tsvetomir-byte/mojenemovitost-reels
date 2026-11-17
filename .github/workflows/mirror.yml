@@ -48,6 +48,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
           FORCE: ${{ github.event.inputs.force || '0' }}
           TEST_TYPE: ${{ github.event.inputs.test_type || '' }}
+          WATCH_PROFILES: ${{ secrets.WATCH_PROFILES }}
         run: python mirror_reels.py
       - name: Keep the video of this run
         if: always()
