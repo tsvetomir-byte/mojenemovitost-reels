@@ -446,6 +446,20 @@ def music(path):
             log("music failed", t, e)
     return None, False
 
+
+def fetch_photo(u):
+    """the CDN stores some photos as .jpg/.png and in other sizes - try the variants, None if none exists"""
+    base = re.sub(r"_w\d+\.(?:webp|jpe?g|png)$", "", u)
+    for suf in ("_w1440.webp", "_w1440.jpg", "_w1920.jpg", "_w1440.png", "_w960.jpg", "_w1920.webp", "_w960.webp", ".jpg", ".webp"):
+        try:
+            r = requests.get(base + suf, headers=UA, timeout=60)
+            if r.status_code == 200 and len(r.content) > 5000:
+                return r.content
+        except Exception as e:
+            log("photo failed", base + suf, e)
+    log("photo not found:", base)
+    return None
+
 def build_video(f_, hour):
     os.makedirs(WORK, exist_ok=True)
     clips = []
@@ -453,7 +467,10 @@ def build_video(f_, hour):
     photos = []
     for i, u in enumerate(f_["images"]):
         p = "%s/p%d.webp" % (WORK, i)
-        open(p, "wb").write(get(u).content)
+        data = fetch_photo(u)
+        if not data:
+            continue
+        open(p, "wb").write(data)
         fr = "%s/f%d.jpg" % (WORK, i)
         photo_frame(p, fr)
         photos.append(fr)
@@ -673,7 +690,11 @@ def main():
         if len(f_["images"]) < MIN_PHOTOS:
             log("skip", pid, "- not enough photos")
             continue
-        video, track, hook = build_video(f_, now.hour)
+        try:
+            video, track, hook = build_video(f_, now.hour)
+        except Exception as e:
+            log("skip", pid, "- video failed:", e)
+            continue
         cap = caption(f_, hook, track)
         log(cap)
         if os.environ.get("DRY_RUN") == "1":

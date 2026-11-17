@@ -220,8 +220,20 @@ def main():
     country = f_["country"]
     log("our property", f_["id"], f_["title"], country)
 
-    R.HOOKS_MORNING = R.HOOKS_EVENING = [hook_for(kind, country, f_)]
-    video, track, hook = R.build_video(f_, now.hour)
+    for attempt in range(5):
+        R.HOOKS_MORNING = R.HOOKS_EVENING = [hook_for(kind, country, f_)]
+        try:
+            video, track, hook = R.build_video(f_, now.hour)
+            break
+        except Exception as e:
+            log("video failed for", f_["id"], e, "- trying another property")
+            posted[f_["id"]] = {"skipped": True, "at": now.isoformat()}
+            idx, f_ = pick_property(idx, posted)
+            if not f_:
+                sys.exit("No suitable property found")
+            country = f_["country"]
+    else:
+        sys.exit("video failed 5 times")
     cap = caption(kind, f_, track)
     log(cap)
     if dry:
