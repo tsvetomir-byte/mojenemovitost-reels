@@ -79,10 +79,12 @@ def post_type(caption):
 
 
 # ---------------------------------------------------------------- our texts (style: CAPS hook, emoji, ✅ list)
-def hook_for(kind, country):
+def hook_for(kind, country, f_=None):
     loc = COUNTRY[country][0]
+    if kind == "prodejni" and f_ is not None and R.installments(f_):
+        return "BYDLENÍ U MOŘE " + loc.upper() + " NA SPLÁTKY!"
     return {
-        "prodejni": "SPLŇTE SI SEN O BYDLENÍ U MOŘE " + loc.upper() + "!",
+        "prodejni": random.choice(["SPLŇTE SI SEN O BYDLENÍ U MOŘE ", "VLASTNÍ NEMOVITOST U MOŘE ", "MOŘE NA DOSAH "]) + loc.upper() + "!",
         "anketa": "KDE BYSTE CHTĚLI BYDLET " + loc.upper() + "?",
         "rano": "DOBRÉ RÁNO " + loc.upper() + "!",
         "kratky": "MOŘE " + loc.upper(),
@@ -90,6 +92,7 @@ def hook_for(kind, country):
 
 
 def hashtags(f_, extra=()):
+    f_ = dict(f_, town=" ".join(dict.fromkeys(f_["town"].split())))  # "Burgas Burgas" -> "Burgas"
     tags = [tag(f_["country"]), tag(f_["town"])] if f_["town"] != f_["country"] else [tag(f_["country"])]
     tags += list(extra) + ["#mojenemovitostumore", "#nemovitostiumore", "#apartmanumore"]
     return " ".join(dict.fromkeys(t for t in tags if len(t) > 2))
@@ -110,13 +113,23 @@ def caption(kind, f_, track):
             lines.append("💶 Cena: " + f_["price"] + " €")
         if f_["sea"]:
             lines.append("🌊 K moři: " + f_["sea"])
+        if R.installments(f_):
+            lines.append("💳 Na splátky během výstavby")
         lines += ["", "📩 Napište nám, pošleme vám nabídky z dalších míst.",
                   "Najdete na webu " + R.BRAND_NAME + " – ID " + f_["id"], "", hashtags(f_, ["#anketa", "#reality"])]
     else:  # prodejni
-        lines = ["🌊☀️ SPLŇTE SI SEN O VLASTNÍM BYDLENÍ U MOŘE " + loc.upper() + "! " + flag, "",
-                 "🏠 " + f_["title"], "",
-                 "Představte si vlastní nemovitost " + loc + ", kde můžete trávit dovolenou, užívat si slunce "
-                 "nebo ji pronajímat. VÁŠ KOUSEK MOŘE! ❤️", "", "💎 CO VÁM NABÍZÍME?"]
+        splatky = R.installments(f_)
+        head = random.choice(["🌊☀️ SPLŇTE SI SEN O VLASTNÍM BYDLENÍ U MOŘE ", "☀️🌴 VLASTNÍ NEMOVITOST U MOŘE ",
+                              "🌊🏖️ MOŘE NA DOSAH "]) + loc.upper() + "! " + flag
+        intro = random.choice([
+            "Představte si vlastní nemovitost " + loc + ", kde můžete trávit dovolenou, užívat si slunce nebo ji pronajímat.",
+            "Ráno káva s výhledem na moře, odpoledne pláž a večer západ slunce. Takový může být váš život " + loc + ".",
+            "Hledáte místo, kam se budete rádi vracet? Vlastní bydlení " + loc + " může být právě to pravé.",
+        ])
+        caps = "NA SPLÁTKY BĚHEM VÝSTAVBY!" if splatky else random.choice(["VÁŠ KOUSEK MOŘE!", "SEN, KTERÝ SE DÁ SPLNIT!"])
+        lines = [head, "", "🏠 " + f_["title"], "", intro + " " + caps + " ❤️", "", "💎 CO VÁM NABÍZÍME?"]
+        if splatky:
+            lines.append("✅ Splátky během výstavby")
         if f_["price"]:
             lines.append("✅ Cena: " + f_["price"] + " €")
         if f_["sea"]:
@@ -143,7 +156,7 @@ def pick_property(start_idx, posted):
         for pid in fresh[:60]:
             if pid not in cache:
                 try:
-                    cache[pid] = R.facts(R.get(ids[pid]).text, pid)
+                    cache[pid] = R.property_facts(pid, ids[pid])
                 except Exception as e:
                     log("detail failed", pid, e)
                     cache[pid] = None
@@ -207,7 +220,7 @@ def main():
     country = f_["country"]
     log("our property", f_["id"], f_["title"], country)
 
-    R.HOOKS_MORNING = R.HOOKS_EVENING = [hook_for(kind, country)]
+    R.HOOKS_MORNING = R.HOOKS_EVENING = [hook_for(kind, country, f_)]
     video, track, hook = R.build_video(f_, now.hour)
     cap = caption(kind, f_, track)
     log(cap)

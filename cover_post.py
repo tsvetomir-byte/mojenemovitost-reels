@@ -149,7 +149,7 @@ def pick_property(covers, reels_posted):
     fresh = [i for i in cand if i not in reels_posted] or cand
     random.shuffle(fresh)
     for pid in fresh[:25]:
-        f_ = R.facts(R.get(ids[pid]).text, pid)
+        f_ = R.property_facts(pid, ids[pid])
         if re.search(r"pozemek|pronájem", f_["title"], re.I) or not f_["images"]:
             continue
         photo = load_photo(f_["images"][0])

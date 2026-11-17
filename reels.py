@@ -112,8 +112,51 @@ def collect_ids(extra=""):
         if not new:
             break
     if not ids:
+        log("website not reachable - using the property cache properties.b64")
+        load_cache()
+        cy = "country_id=%d" % CYPRUS_ID in extra
+        ids = {pid: f_["url"] for pid, f_ in CACHE.items() if not cy or f_["country"] == "Kypr"}
+    if not ids:
         sys.exit("No properties found on mojenemovitostumore.cz")
     return ids
+
+
+CACHE = {}
+CACHE_FILE = "properties.b64"  # gzip+base64 JSON list, refreshed from a browser (the website blocks GitHub servers)
+
+
+def load_cache():
+    import base64, gzip
+    if CACHE or not os.path.exists(CACHE_FILE):
+        return
+    rows = json.loads(gzip.decompress(base64.b64decode(open(CACHE_FILE).read().strip())))
+    for pid, url, title, price, area, sea, town, country, imgs in rows:
+        CACHE[pid] = {"id": pid, "url": SITE + url, "title": title, "price": price, "area": area, "sea": sea,
+                      "town": town, "country": country,
+                      "images": ["https://mnum.fra1.cdn.digitaloceanspaces.com/%s/%s_w1440.webp" % (pid, i) for i in imgs]}
+    log("cache:", len(CACHE), "properties")
+
+
+def property_facts(pid, url):
+    """from the website, or from the cache when the website blocks us"""
+    if pid in CACHE:
+        return dict(CACHE[pid])
+    try:
+        return facts(get(url).text, pid)
+    except Exception as e:
+        load_cache()
+        if pid in CACHE:
+            log("detail blocked, using cache for", pid)
+            return dict(CACHE[pid])
+        raise e
+
+
+INSTALLMENTS = re.compile(r"výstavb|ve stavbě|off.?plan|splát", re.I)
+
+
+def installments(f_):
+    """everything under construction is sold on installments"""
+    return bool(INSTALLMENTS.search(f_.get("title", "")))
 
 def place(text, pid):
     """'Posedarje, Chorvatsko - ID 36779' -> town, country"""
@@ -498,6 +541,8 @@ def caption(f_, hook, track):
         lines.append("📐 Plocha: " + f_["area"] + " m²")
     if f_["sea"]:
         lines.append("🌊 K moři: " + f_["sea"])
+    if installments(f_):
+        lines.append("💳 Na splátky během výstavby")
     lines += ["📍 " + ", ".join(x for x in dict.fromkeys([f_["town"], f_["country"]]) if x), "", "✨ Proč bydlet u moře?"] + ["• " + p for p in perks]
     lines += ["", "🇨🇿 Česká realitní kancelář · kompletní servis",
               "📩 Napište nám nebo nás najdete na webu " + BRAND_NAME + " – ID " + f_["id"], "", " ".join(tags[:15])]
@@ -608,7 +653,7 @@ def main():
     random.shuffle(fresh)
     log("luxury properties:", len(ids), "not posted yet:", len(fresh))
     for pid in fresh[:25]:
-        f_ = facts(get(ids[pid]).text, pid)
+        f_ = property_facts(pid, ids[pid])
         log("candidate", pid, f_["title"], f_["price"], f_["sea"], len(f_["images"]))
         if cy and f_["country"] not in ("Kypr", ""):
             log("skip", pid, "- not Cyprus on Cyprus day")
