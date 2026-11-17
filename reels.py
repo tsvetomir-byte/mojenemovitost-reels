@@ -411,6 +411,12 @@ def stock_clip(path, query=None):
 
 def music(path):
     """own instrumental Suno tracks from music/; free lounge tracks only as a fallback. returns (name, needs_credit)"""
+    own = glob.glob("music/*.mp3") + glob.glob("music/*.wav") + glob.glob("music/*.m4a")
+    if own:  # own Suno tracks committed in music/ (the Suno CDN blocks GitHub servers)
+        src = random.choice(own)
+        ff(["-i", src, "-c:a", "libmp3lame", "-b:a", "192k", path])
+        log("music (own):", os.path.basename(src))
+        return os.path.splitext(os.path.basename(src))[0].replace("_", " "), False
     names = list(SUNO)
     random.shuffle(names)
     for n in names:
