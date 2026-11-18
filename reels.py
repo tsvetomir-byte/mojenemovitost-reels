@@ -240,6 +240,9 @@ def shadow_text(draw, xy, text, f, fill=WHITE, anchor="la"):
     draw.text((x, y), text, font=f, fill=fill, anchor=anchor)
 
 
+PHOTO_H = 1200  # height of the photo window in the 1080x1920 frame (bands: 360 px top and bottom)
+
+
 def photo_frame(src, out):
     """photo -> 9:16 frame: blurred cover background + full photo in the middle."""
     im = Image.open(src).convert("RGB")
@@ -247,11 +250,12 @@ def photo_frame(src, out):
     r = max(W / bg.width, H / bg.height)
     bg = bg.resize((int(bg.width * r) + 1, int(bg.height * r) + 1)).crop((0, 0, W, H)).filter(ImageFilter.GaussianBlur(40))
     bg = Image.blend(bg, Image.new("RGB", (W, H), (0, 0, 0)), 0.35)
-    r = W / im.width
-    fg = im.resize((W, int(im.height * r)))
-    if fg.height > H * 0.75:
-        fg = fg.crop((0, (fg.height - int(H * 0.75)) // 2, W, (fg.height + int(H * 0.75)) // 2))
-    bg.paste(fg, (0, (H - fg.height) // 2 - 80))
+    # the photo always fills the same centred window, so the blurred bands above and below are equal in every reel
+    r = max(W / im.width, PHOTO_H / im.height)
+    fg = im.resize((int(im.width * r) + 1, int(im.height * r) + 1))
+    x, y = (fg.width - W) // 2, (fg.height - PHOTO_H) // 2
+    fg = fg.crop((x, y, x + W, y + PHOTO_H))
+    bg.paste(fg, (0, (H - PHOTO_H) // 2))
     bg.save(out, quality=95)
 
 
@@ -668,6 +672,11 @@ def main():
     slot = now.strftime("%Y-%m-%d-") + ("am" if now.hour < 12 else "pm")
     if not force and any(v.get("slot") == slot for v in posted.values()):
         log("Already posted in slot", slot)
+        return
+    if now.hour >= 12 and os.environ.get("PM_PROPERTY") != "1":
+        import info_reels
+        log("Afternoon slot: varied topic (weather, Christmas, customs, trends)")
+        info_reels.main("life")
         return
     cy = cyprus_day(now.date())
     log("Cyprus day" if cy else "Other countries day (no Cyprus)")
