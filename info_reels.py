@@ -149,7 +149,7 @@ TOPICS = [
       ("Téměř 1 000 nabídek", "Na celém Kypru")],
      "Napište nám do zpráv KYPR", ["#recenze", "#realitykypr"]),
     ("S14", ES, "Kupujte ve Španělsku česky.",
-     [("Český makléř", "Od výběru až po klíče"), ("20 let jen moře", "1 500+ nových majitelů"),
+     [("Český makléř", "Od výběru až po klíče"), ("17 let jen moře", "1 500+ nových majitelů"),
       ("WhatsApp", "Nikša Marinković +420 776 694 123")],
      "Napište nám do zpráv ŠPANĚLSKO", ["#ceskymakler"]),
     ("K15", CY, "Nemáte celou částku? Nevadí.",
@@ -371,7 +371,7 @@ def clip(c, query, ovl, dur, out, n):
     ph = openverse_photo("%s/ph%d.jpg" % (R.WORK, n), query) or openverse_photo("%s/ph%d.jpg" % (R.WORK, n), random.choice(c["stock"]))
     if ph:
         bg = "%s/bgp%d.jpg" % (R.WORK, n)
-        R.photo_frame(ph, bg) if Image.open(ph).width > Image.open(ph).height * 0.75 else Image.open(ph).save(bg)
+        R.photo_frame(ph, bg)
         R.clip_from_image(bg, ovl, dur, out, move=n)
     else:
         bg = "%s/bg%d.jpg" % (R.WORK, n)
@@ -424,7 +424,7 @@ def caption(topic, wx, badge, track):
     if badge:
         lines += ["", "☀️ " + badge]
     lines += ["", "👉 " + cta, "📩 Napište nám do zpráv " + c["dm"] + " – odpovíme česky.",
-              "🇨🇿 20 let jen nemovitosti u moře · 1 500+ nových majitelů · kompletní servis",
+              "🇨🇿 17 let jen nemovitosti u moře · 1 500+ nových majitelů · kompletní servis",
               "", "ℹ️ " + LEGAL, "", " ".join(list(dict.fromkeys(extra + c["tags"] + COMMON_TAGS))[:15])]
     if CREDITS:
         lines += ["", "📷 Foto: " + ", ".join(dict.fromkeys(CREDITS)) + ""]
@@ -433,26 +433,61 @@ def caption(topic, wx, badge, track):
     return "\n".join(lines)
 
 
-def main():
+def used_topics(posted, today, days):
+    out = set()
+    for k, v in posted.items():
+        try:
+            if (today - date.fromisoformat(k[:10])).days < days:
+                out.add(v.get("topic"))
+        except ValueError:
+            pass
+    return out
+
+
+def in_season(win, today):
+    a, b = win
+    md = today.strftime("%m-%d")
+    return a <= md <= b if a <= b else (md >= a or md <= b)
+
+
+def life_topic(today, posted):
+    """afternoon reel: seasonal topic (Christmas, customs, winter weather) every other day, otherwise a trend topic;
+    nothing repeats within 45 days."""
+    used = used_topics(posted, today, 45)
+    season = [t for win, t in TT.SEASON if in_season(win, today) and t[0] not in used]
+    trend = [t for t in TT.TREND if t[0] not in used]
+    first, second = (season, trend) if today.toordinal() % 2 == 0 else (trend, season)
+    pool = first or second
+    if not pool:
+        return TT.TREND[today.toordinal() % len(TT.TREND)]
+    return pool[0] if pool is season else pool[today.toordinal() % len(pool)]
+
+
+def main(slot="info"):
+    life = slot == "life"
     now = datetime.now(ZoneInfo("Europe/Prague"))
     force = os.environ.get("FORCE") == "1"
     dry = os.environ.get("DRY_RUN") == "1"
     if not os.environ.get("IG_TOKEN") and not dry:
         log("IG_TOKEN is not set yet - nothing to publish")
         return
-    if not force and now.hour != 19:
+    if not force and not life and now.hour != 19:
         log("Not info-reel time in Prague (%s) - skip" % now.strftime("%H:%M"))
         return
     posted = json.load(open("info_posted.json")) if os.path.exists("info_posted.json") else {}
-    day = now.strftime("%Y-%m-%d")
+    day = now.strftime("%Y-%m-%d") + ("-pm" if life else "")
     if not force and day in posted:
         log("Info reel already posted today")
         return
     only = os.environ.get("TOPIC", "").strip()
     if only:
         topic = next(t for t in TOPICS if t[0] == only)
+    elif life:
+        topic = life_topic(now.date(), posted)
     else:
-        topic = TOPICS[(now.date() - START).days % len(TOPICS)]
+        i = (now.date() - START).days % len(TOPICS)
+        used = used_topics(posted, now.date(), 30)
+        topic = next((t for t in TOPICS[i:] + TOPICS[:i] if t[0] not in used), TOPICS[i])
     c = topic[1]
     air = sea = None
     wx = {}
@@ -463,8 +498,11 @@ def main():
               pre + "sea": ("Moře %d °C" % sea) if sea is not None else "Teplé moře"}
     live = live_fill(topic)
     if live is None:
-        i = TOPICS.index(topic)
-        topic = next(t for t in TOPICS[i + 1:] + TOPICS[:i] if "{" not in json.dumps(t[2:5], ensure_ascii=False))
+        pool = TT.TREND if life else TOPICS
+        i = pool.index(topic) if topic in pool else 0
+        used = used_topics(posted, now.date(), 30)
+        plain = [t for t in pool[i + 1:] + pool[:i] if "{" not in json.dumps(t[2:5], ensure_ascii=False)]
+        topic = next((t for t in plain if t[0] not in used), plain[0])
         log("live weather unavailable - using topic", topic[0])
         c = topic[1]
         air = sea = None
