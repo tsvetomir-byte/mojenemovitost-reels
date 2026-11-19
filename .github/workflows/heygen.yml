@@ -19,7 +19,7 @@ on:
         description: "Topic key e.g. K1, S1, A1 (empty = next in rotation)"
         default: ""
       video_url:
-        description: "Link to a finished HeyGen video (then no API key is needed)"
+        description: "HeyGen video id or share link of a finished video (then no API key is needed)"
         default: ""
 
 permissions:
@@ -63,6 +63,18 @@ jobs:
           path: final.mp4
           if-no-files-found: ignore
           retention-days: 7
+      - name: Preview branch (dry run only)
+        if: success() && github.event.inputs.dry_run == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -f final.mp4 ] || exit 0
+          rm -rf /tmp/pv && mkdir /tmp/pv && cp final.mp4 /tmp/pv/ && cd /tmp/pv
+          git init -q -b preview
+          git config user.name "reels-bot"
+          git config user.email "reels-bot@users.noreply.github.com"
+          git add final.mp4 && git commit -qm "preview $(date -u +%F-%H%M)"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" preview
       - name: Save posted list
         if: success()
         run: |
