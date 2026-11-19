@@ -310,6 +310,28 @@ def main():
     force = os.environ.get("FORCE") == "1"
     dry = os.environ.get("DRY_RUN") == "1"
     mode = os.environ.get("MODE", "").strip()
+    video_url = os.environ.get("VIDEO_URL", "").strip()
+    if video_url:  # a video already made on the HeyGen web: no API key needed
+        topic = next(t for t in TOPICS if t[0] == (os.environ.get("TOPIC", "").strip() or "K1"))
+        os.makedirs(R.WORK, exist_ok=True)
+        raw = "%s/heygen_raw.mp4" % R.WORK
+        open(raw, "wb").write(requests.get(video_url, timeout=300).content)
+        log("downloaded video", os.path.getsize(raw), "bytes, topic", topic[0])
+        track = finish(raw, topic, probe(raw), "final.mp4")
+        cap = caption(topic, track)
+        log(cap)
+        if dry:
+            log("DRY RUN - not publishing")
+            return
+        if not os.environ.get("IG_TOKEN"):
+            log("IG_TOKEN is not set yet - nothing to publish")
+            return
+        mid = R.publish_reel("final.mp4", cap)
+        posted = json.load(open(POSTED)) if os.path.exists(POSTED) else {}
+        posted[now.strftime("%Y-%m-%d")] = {"topic": topic[0], "media": mid, "at": now.isoformat()}
+        json.dump(posted, open(POSTED, "w"), indent=1, ensure_ascii=False)
+        log("Published HeyGen reel", mid, topic[0])
+        return
     if not os.environ.get("HEYGEN_API_KEY"):
         log("HEYGEN_API_KEY is not set yet - nothing to do")
         return
