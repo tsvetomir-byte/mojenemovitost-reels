@@ -1,0 +1,70 @@
+name: Instagram HeyGen Reel (Mon Wed Fri 12:00)
+
+on:
+  schedule:
+    # about 12:00 Europe/Prague on Monday, Wednesday, Friday (winter and summer time; the script checks the Prague hour)
+    - cron: "10 10,11 * * 1,3,5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "list = only print HeyGen avatars and voices (free). Empty = make a video (costs HeyGen API balance)"
+        default: "list"
+      dry_run:
+        description: "Make the video but do not publish (1 = yes)"
+        default: "1"
+      force:
+        description: "Ignore the day and time check (1 = yes)"
+        default: "1"
+      topic:
+        description: "Topic key e.g. K1, S1, A1 (empty = next in rotation)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reels
+  cancel-in-progress: false
+
+jobs:
+  heygen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q requests pillow
+          mkdir -p fonts
+          curl -sL -o fonts/Poppins-Bold.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf
+          curl -sL -o fonts/Poppins-Medium.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Medium.ttf
+      - {name: Get Suno music, env: {GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"}, run: "gh release download music -D music -p '*.mp3' --clobber || echo no-music"}
+      - name: Make and publish HeyGen reel
+        env:
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ github.event.inputs.mode || '' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          FORCE: ${{ github.event.inputs.force || '0' }}
+          TOPIC: ${{ github.event.inputs.topic || '' }}
+        run: python heygen_reels.py
+      - name: Keep the video of this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heygen-reel-video
+          path: final.mp4
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Save posted list
+        if: success()
+        run: |
+          git config user.name "reels-bot"
+          git config user.email "reels-bot@users.noreply.github.com"
+          git pull --rebase -q || true
+          git add heygen_posted.json 2>/dev/null || true
+          git commit -m "heygen reel $(date -u +%F-%H%M)" || echo "nothing to commit"
+          git push || (git pull --rebase -q && git push)
