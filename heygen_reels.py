@@ -105,9 +105,29 @@ def norm(s):
 
 
 # ---------------------------------------------------------------- HeyGen API
+KEY = []
+
+
+def api_key():
+    """the HeyGen key from the secret; if the secret was pasted with more lines, the part that HeyGen accepts"""
+    if not KEY:
+        parts = list(dict.fromkeys(os.environ.get("HEYGEN_API_KEY", "").split()))
+        KEY.append(parts[0] if parts else "")
+        if len(parts) > 1:
+            log("HEYGEN_API_KEY has %d parts - trying each" % len(parts))
+            for p in parts:
+                try:
+                    if requests.get(API + "/v2/voices", headers={"X-Api-Key": p}, timeout=60).status_code == 200:
+                        KEY[0] = p
+                        break
+                except Exception:
+                    pass
+    return KEY[0]
+
+
 def hg(method, path, **kw):
     r = requests.request(method, API + path, timeout=90,
-                         headers={"X-Api-Key": os.environ["HEYGEN_API_KEY"], "Accept": "application/json"}, **kw)
+                         headers={"X-Api-Key": api_key(), "Accept": "application/json"}, **kw)
     try:
         j = r.json()
     except Exception:
