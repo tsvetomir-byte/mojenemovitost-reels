@@ -18,6 +18,9 @@ on:
       topic:
         description: "Topic key e.g. K1, S1, A1 (empty = next in rotation)"
         default: ""
+      video_url:
+        description: "Link to a finished HeyGen video (then no API key is needed)"
+        default: ""
 
 permissions:
   contents: write
@@ -50,6 +53,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
           FORCE: ${{ github.event.inputs.force || '0' }}
           TOPIC: ${{ github.event.inputs.topic || '' }}
+          VIDEO_URL: ${{ github.event.inputs.video_url || '' }}
         run: python heygen_reels.py
       - name: Keep the video of this run
         if: always()
