@@ -229,10 +229,10 @@ def title_png(out, small, big):
     d = ImageDraw.Draw(im)
     fs = font(R.FONT_BOLD, 62)
     for dx, dy in ((3, 3), (2, 2)):
-        d.text((W // 2 + dx, 250 + dy), small, font=fs, fill=(0, 0, 0, 170), anchor="ma")
-    d.text((W // 2, 250), small, font=fs, fill=WHITE + (255,), anchor="ma")
+        d.text((W // 2 + dx, 880 + dy), small, font=fs, fill=(0, 0, 0, 170), anchor="ma")
+    d.text((W // 2, 880), small, font=fs, fill=WHITE + (255,), anchor="ma")
     fb = R.fit_text(d, big, R.FONT_BOLD, 132, W - 90)
-    gold_text(d, (W // 2, 325), big, fb)
+    gold_text(d, (W // 2, 955), big, fb)
     im.save(out)
 
 
