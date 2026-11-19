@@ -39,9 +39,9 @@ COMMON_TAGS = ["#investicedonemovitosti", "#zivotumore", "#mojenemovitostumore",
 PRESENTERS = {
     "CY": {"avatar": "Kypr - Eliska", "voice": "Iona", "name": "Kypr", "dm": "KYPR",
            "tags": ["#kypr", "#nemovitostinakypru", "#bytnakypru", "#cyprus", "#pafos", "#larnaka", "#limassol"]},
-    "ES": {"avatar": "Spanelsko - Sofie", "voice": "Sophia", "name": "Španělsko", "dm": "ŠPANĚLSKO",
+    "ES": {"avatar": "Spanelsko - Sofie", "voice": "Kyliee", "name": "Španělsko", "dm": "ŠPANĚLSKO",
            "tags": ["#spanelsko", "#nemovitostivespanelsku", "#bytvespanelsku", "#costablanca", "#spain"]},
-    "AL": {"avatar": "Albanie - Klara", "voice": "Annie", "name": "Albánie", "dm": "ALBÁNIE",
+    "AL": {"avatar": "Albanie - Klara", "voice": "Ellie Faye", "name": "Albánie", "dm": "ALBÁNIE",
            "tags": ["#albanie", "#nemovitostivalbanii", "#bytvalbanii", "#albania", "#buyalbania"]},
 }
 
@@ -147,7 +147,7 @@ def find_voice(voices, want):
     if os.environ.get("HEYGEN_VOICE_ID"):
         return os.environ["HEYGEN_VOICE_ID"]
     w = norm(want)
-    hits = [v for v in voices if norm(v.get("name")).startswith(w)] or [v for v in voices if w in norm(v.get("name"))]
+    hits = [v for v in voices if norm(v.get("name")) == w] or [v for v in voices if norm(v.get("name")).startswith(w)] or [v for v in voices if w in norm(v.get("name"))]
     if not hits:
         raise RuntimeError("voice '%s' not found in HeyGen - run MODE=list to see the names" % want)
     return hits[0]["voice_id"]
