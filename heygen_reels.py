@@ -14,6 +14,7 @@ TOPIC=K1   -> use this topic instead of the next one in the rotation
 """
 import json
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -195,6 +196,25 @@ def heygen_video(kind, avatar_id, voice_id, script, out):
     raise RuntimeError("HeyGen video not ready after 30 minutes")
 
 
+def share_video(ref, out):
+    """download a video made on the HeyGen web from its share page (shared as 'Anyone with the link'); ref = video id or share link"""
+    urls = [ref]
+    if "/share/" in ref or not ref.startswith("http"):
+        vid = ref.rstrip("/").split("/")[-1].split("?")[0]
+        html = requests.get("https://app.heygen.com/share/" + vid, headers=R.UA, timeout=60).text
+        html = re.sub(r"\\+u0026", "&", html)
+        html = re.sub(r"\\+/", "/", html).replace("&amp;", "&")
+        urls = list(dict.fromkeys(re.findall(r'https://[a-z0-9.]*heygen\.ai/[^"\\\s<]+?\.mp4[^"\\\s<]*', html)))
+        urls.sort(key=lambda u: "transcode" not in u)
+    for u in urls:
+        r = requests.get(u, timeout=300)
+        log("video file:", u.split("?")[0].split("/")[-1], r.status_code, len(r.content))
+        if r.status_code == 200 and len(r.content) > 200000:
+            open(out, "wb").write(r.content)
+            return
+    raise RuntimeError("no downloadable video found for " + ref.split("?")[0])
+
+
 # ---------------------------------------------------------------- titles, subtitles, music
 def gold_text(d, xy, text, f):
     x, y = xy
@@ -315,7 +335,7 @@ def main():
         topic = next(t for t in TOPICS if t[0] == (os.environ.get("TOPIC", "").strip() or "K1"))
         os.makedirs(R.WORK, exist_ok=True)
         raw = "%s/heygen_raw.mp4" % R.WORK
-        open(raw, "wb").write(requests.get(video_url, timeout=300).content)
+        share_video(video_url, raw)
         log("downloaded video", os.path.getsize(raw), "bytes, topic", topic[0])
         track = finish(raw, topic, probe(raw), "final.mp4")
         cap = caption(topic, track)
